@@ -71,19 +71,7 @@ export class CorridorScene extends Scene {
       ctx.fillRect(640, 120, 640, 520);
     }, 0.15);
     
-    ctx.strokeStyle = '#0c1018';
-    ctx.lineWidth = 2;
-    for (let y = 120; y < 640; y += 44) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(580, y); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(640, y); ctx.lineTo(1280, y); ctx.stroke();
-      const offset = (y / 44) % 2 === 0 ? 0 : 35;
-      for (let x = offset; x < 580; x += 70) {
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 44); ctx.stroke();
-      }
-      for (let x = 640 + offset; x < 1280; x += 70) {
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 44); ctx.stroke();
-      }
-    }
+
     
     // Window arch
     ctx.fillStyle = '#1e2430';
