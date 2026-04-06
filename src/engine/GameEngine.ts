@@ -36,7 +36,10 @@ export class GameEngine {
     arrowsFired: 0,
     trialActive: false,
     hasBow: false,
-    trialCompleted: false
+    trialCompleted: false,
+    playerHealth: 5,
+    playerMaxHealth: 5,
+    playerInvincibleTimer: 0
   };
 
   isPaused = false;

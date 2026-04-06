@@ -5,28 +5,19 @@ import { PALETTE } from '../Constants';
 import { CorridorScene } from './CorridorScene';
 import { fillWithTexture, getTextureImage } from '../Textures';
 import retroTreeUrl from '../../RetroTree.png';
+import { drawThought } from '../DrawThought';
+import { Suitor } from '../Suitor';
 
 const treeImg = new Image();
 treeImg.src = retroTreeUrl;
 
-interface Suitor {
-  x: number;
-  y: number;
-  facing: 'left' | 'right';
-  alive: boolean;
-  opacity: number;
-  spawnDelay: number;
-  flashTimer: number;
-  dying: boolean;
-  deathTimer: number;
-}
-
-type HallPhase = 'trial' | 'fight' | 'victory_wait' | 'victory_text' | 'victory_done';
+type HallPhase = 'trial' | 'fight' | 'victory_wait' | 'victory_text' | 'victory_done' | 'dead';
 
 export class GreatHallScene extends Scene {
   player!: Player;
   arrows: Arrow[] = [];
   time = 0;
+  thoughtAlpha = 0;
   
   axes = Array.from({length: 12}, (_, i) => ({
     x: 580 + i * 126,
@@ -62,6 +53,8 @@ export class GreatHallScene extends Scene {
   fightTime = 0;
   victoryTimer = 0;
   victoryTextAlpha = 0;
+  damageFlash = 0;
+  deathFadeTimer = 0;
 
   onEnter(direction: 'left' | 'right' = 'left') {
     const spawnX = direction === 'right' ? 2460 : 120;
@@ -79,6 +72,8 @@ export class GreatHallScene extends Scene {
 
   update(dt: number) {
     this.time += dt;
+    // Thought fades in over 2s then stays
+    if (this.thoughtAlpha < 1) this.thoughtAlpha = Math.min(1, this.thoughtAlpha + dt / 2);
     
     if (this.phase === 'trial') {
       this.updateTrial(dt);
@@ -106,6 +101,25 @@ export class GreatHallScene extends Scene {
       this.victoryTimer += dt;
       if (this.victoryTimer >= 0.4 && this.engine.transitionState === 'none') {
         this.engine.switchScene(new CorridorScene(), 600);
+      }
+    } else if (this.phase === 'dead') {
+      this.deathFadeTimer += dt;
+      if (this.deathFadeTimer >= 2.5 && this.engine.input.isDown(['Space', 'Enter'])) {
+        // Restart the fight
+        this.phase = 'fight';
+        this.player.frozen = false;
+        this.player.x = 120;
+        this.player.vx = 0;
+        this.deathFadeTimer = 0;
+        this.engine.globalState.playerHealth = this.engine.globalState.playerMaxHealth;
+        this.engine.globalState.playerInvincibleTimer = 1.5;
+        this.suitors = [
+          new Suitor(600,  650, 0,   0),
+          new Suitor(1100, 650, 300, 1),
+          new Suitor(1700, 650, 600, 2),
+          new Suitor(400,  650, 1200, 3),
+          new Suitor(2000, 650, 1800, 4),
+        ];
       }
     }
     
@@ -185,12 +199,17 @@ export class GreatHallScene extends Scene {
     this.fightTime = 0;
     this.engine.globalState.hasBow = false;
     this.engine.globalState.trialActive = false;
+    this.engine.globalState.playerHealth = this.engine.globalState.playerMaxHealth;
+    this.engine.globalState.playerInvincibleTimer = 0;
     this.arrows = [];
+    this.damageFlash = 0;
     
     this.suitors = [
-      { x: 600,  y: 650, facing: 'left', alive: true, opacity: 0, spawnDelay: 0,   flashTimer: 0, dying: false, deathTimer: 0 },
-      { x: 1100, y: 650, facing: 'left', alive: true, opacity: 0, spawnDelay: 200, flashTimer: 0, dying: false, deathTimer: 0 },
-      { x: 1700, y: 650, facing: 'left', alive: true, opacity: 0, spawnDelay: 400, flashTimer: 0, dying: false, deathTimer: 0 },
+      new Suitor(600,  650, 0,   0),
+      new Suitor(1100, 650, 300, 1),
+      new Suitor(1700, 650, 600, 2),
+      new Suitor(400,  650, 1200, 3),
+      new Suitor(2000, 650, 1800, 4),
     ];
   }
 
@@ -198,41 +217,68 @@ export class GreatHallScene extends Scene {
     this.fightTime += dt * 1000;
     this.player.update(dt);
     
+    if (this.damageFlash > 0) this.damageFlash -= dt;
+    
+    // Update invincibility
+    const gs = this.engine.globalState;
+    if (gs.playerInvincibleTimer > 0) gs.playerInvincibleTimer -= dt;
+    
+    // Update suitors
     for (const s of this.suitors) {
-      if (!s.alive && !s.dying) continue;
-      if (this.fightTime > s.spawnDelay && !s.dying && s.opacity < 1) {
-        s.opacity = Math.min(1, s.opacity + dt / 0.6);
-      }
-      if (s.flashTimer > 0) s.flashTimer -= dt * 1000;
-      if (s.dying) {
-        s.deathTimer += dt * 1000;
-        s.opacity = Math.max(0, 1 - s.deathTimer / 400);
-        if (s.deathTimer >= 400) {
-          s.alive = false;
-          s.dying = false;
-        }
-      }
+      s.update(dt, this.player.x);
     }
     
-    // Global attack now handled in Player.ts
-    
+    // Player attack → suitor damage
     if (this.player.isAttackHitActive) {
       const [hx, hy, hw, hh] = this.player.getAttackHitBox();
       for (const s of this.suitors) {
-        if (!s.alive || s.dying) continue;
-        const sx = s.x - 21; // 1.5x lateral size
-        const sy = s.y - 80;
-        const sw = 42;       // 1.5x lateral size (was 28)
-        const sh = 80;
+        if (!s.alive || s.state === 'dying' || s.state === 'dead') continue;
+        const [sx, sy, sw, sh] = s.getHitBox();
         if (hx < sx + sw && hx + hw > sx && hy < sy + sh && hy + hh > sy) {
-          s.dying = true;
-          s.flashTimer = 150;
-          s.deathTimer = 0;
+          const killed = s.takeDamage();
+          this.engine.shake(killed ? 5 : 2.5, 100, 20);
+          if (killed) {
+            this.engine.timeScale = 0.08;
+            setTimeout(() => this.engine.timeScale = 1.0, 80);
+          }
         }
       }
     }
     
-    const allDead = this.suitors.every(s => !s.alive && !s.dying);
+    // Suitor attack → player damage
+    if (gs.playerInvincibleTimer <= 0) {
+      for (const s of this.suitors) {
+        if (!s.alive || s.state !== 'attack' || s.hasDamagedThisSwing) continue;
+        const atkBox = s.getAttackHitBox();
+        if (!atkBox) continue;
+        const [ax, ay, aw, ah] = atkBox;
+        // Player hitbox (roughly centered on player)
+        const px = this.player.x - 14;
+        const py = this.player.y - 70;
+        const pw = 28;
+        const ph = 70;
+        if (ax < px + pw && ax + aw > px && ay < py + ph && ay + ah > py) {
+          gs.playerHealth--;
+          gs.playerInvincibleTimer = 1.2; // 1.2s of i-frames
+          s.hasDamagedThisSwing = true;
+          this.damageFlash = 0.3;
+          this.engine.shake(4, 150, 18);
+          
+          // Knockback player away from suitor
+          const knockDir = this.player.x > s.x ? 1 : -1;
+          this.player.vx = knockDir * 300;
+          
+          if (gs.playerHealth <= 0) {
+            this.phase = 'dead';
+            this.deathFadeTimer = 0;
+            this.player.frozen = true;
+            return;
+          }
+        }
+      }
+    }
+    
+    const allDead = this.suitors.every(s => !s.alive && s.state === 'dead');
     if (allDead && this.suitors.length > 0) {
       this.phase = 'victory_wait';
       this.victoryTimer = 0;
@@ -515,39 +561,23 @@ export class GreatHallScene extends Scene {
     
     // Suitors
     for (const s of this.suitors) {
-      if (s.opacity <= 0.01) continue;
-      ctx.save();
-      ctx.globalAlpha = s.opacity;
-      const flashing = s.flashTimer > 0;
-      
-      const glowGrad = ctx.createRadialGradient(s.x, s.y - 40, 0, s.x, s.y - 40, 8);
-      glowGrad.addColorStop(0, 'rgba(58,16,16,0.2)');
-      glowGrad.addColorStop(1, 'rgba(58,16,16,0)');
-      ctx.fillStyle = glowGrad;
-      ctx.fillRect(s.x - 40, s.y - 80, 80, 80);
-      
-      ctx.fillStyle = flashing ? '#ffffff' : '#1a1420';
-      ctx.beginPath();
-      ctx.ellipse(s.x, s.y - 70, 10, 10, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(s.x - 14, s.y - 58);
-      ctx.lineTo(s.x + 14, s.y - 58);
-      ctx.lineTo(s.x + 10, s.y);
-      ctx.lineTo(s.x - 10, s.y);
-      ctx.closePath();
-      ctx.fill();
-      
-      if (!flashing) {
-        ctx.fillStyle = '#2a2030';
-        ctx.fillRect(s.x - 4, s.y - 55, 8, 40);
-      }
-      
-      ctx.restore();
+      s.draw(ctx);
     }
     
     this.player.draw(ctx);
     for (const arrow of this.arrows) arrow.draw(ctx);
+    
+    // Damage red flash overlay (covers scene)
+    if (this.damageFlash > 0) {
+      ctx.save();
+      ctx.resetTransform();
+      ctx.fillStyle = `rgba(180, 30, 20, ${this.damageFlash / 0.3 * 0.35})`;
+      ctx.fillRect(0, 0, 1280, 720);
+      ctx.restore();
+    }
+    
+    // Invincibility blink — make player semi-transparent when i-frames active
+    // (Already drawn above, so we overlay a masking effect — handled via next frame)
     
     // HUD
     ctx.save();
@@ -611,5 +641,100 @@ export class GreatHallScene extends Scene {
     }
     
     ctx.restore();
+
+    // Health Hearts HUD (fight phase)
+    if (this.phase === 'fight' || this.phase === 'dead') {
+      ctx.save();
+      ctx.resetTransform();
+      const gs = this.engine.globalState;
+      for (let i = 0; i < gs.playerMaxHealth; i++) {
+        const hx = 20 + i * 28;
+        const hy = 20;
+        const filled = i < gs.playerHealth;
+        
+        // Heart shape
+        ctx.save();
+        ctx.translate(hx + 10, hy + 10);
+        
+        // Pulse when low health
+        if (gs.playerHealth <= 2 && filled) {
+          const pulse = 1 + Math.sin(this.time * 6) * 0.08;
+          ctx.scale(pulse, pulse);
+        }
+        
+        ctx.beginPath();
+        ctx.moveTo(0, 3);
+        ctx.bezierCurveTo(-2, -3, -10, -5, -10, 2);
+        ctx.bezierCurveTo(-10, 7, 0, 12, 0, 15);
+        ctx.bezierCurveTo(0, 12, 10, 7, 10, 2);
+        ctx.bezierCurveTo(10, -5, 2, -3, 0, 3);
+        ctx.closePath();
+        
+        if (filled) {
+          ctx.fillStyle = '#cc2222';
+          ctx.fill();
+          // Highlight
+          ctx.fillStyle = 'rgba(255,100,100,0.4)';
+          ctx.beginPath();
+          ctx.ellipse(-4, 1, 3, 2, -0.3, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = 'rgba(40,20,20,0.6)';
+          ctx.fill();
+          ctx.strokeStyle = '#4a2020';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+    
+    // Death overlay
+    if (this.phase === 'dead') {
+      ctx.save();
+      ctx.resetTransform();
+      const fadeAlpha = Math.min(this.deathFadeTimer / 1.5, 0.85);
+      ctx.fillStyle = `rgba(20, 8, 8, ${fadeAlpha})`;
+      ctx.fillRect(0, 0, 1280, 720);
+      
+      if (this.deathFadeTimer >= 1.0) {
+        const textAlpha = Math.min((this.deathFadeTimer - 1.0) / 0.8, 1);
+        ctx.globalAlpha = textAlpha;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        ctx.fillStyle = '#8a2020';
+        ctx.font = '32px Georgia, serif';
+        ctx.fillText('YOU HAVE FALLEN', 640, 320);
+        
+        ctx.fillStyle = '#6a4040';
+        ctx.font = 'italic 15px Georgia, serif';
+        ctx.fillText('The suitors have bested Odysseus...', 640, 370);
+      }
+      
+      if (this.deathFadeTimer >= 2.5) {
+        const blinkAlpha = 0.4 + Math.sin(this.time * 4) * 0.3;
+        ctx.globalAlpha = blinkAlpha;
+        ctx.fillStyle = '#686050';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Press Space to try again', 640, 430);
+      }
+      
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    // Odysseus thought — context-sensitive
+    if (this.phase === 'trial' || this.phase === 'fight') {
+      const trialText = this.phase === 'trial'
+        ? 'I must shoot the arrow through each axe head.'
+        : 'I must slay the suitors who plague my house.';
+      ctx.save();
+      ctx.translate(camX, 0);
+      drawThought(ctx, trialText, this.thoughtAlpha);
+      ctx.restore();
+    }
   }
 }

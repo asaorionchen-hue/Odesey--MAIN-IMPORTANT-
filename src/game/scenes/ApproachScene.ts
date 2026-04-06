@@ -5,6 +5,7 @@ import { PALETTE, DEFAULT_FADE_MS } from '../Constants';
 import { CourtyardScene } from './CourtyardScene';
 import retroTreeUrl from '../../RetroTree.png';
 import { fillWithTexture, getPattern, getTextureImage } from '../Textures';
+import { drawThought } from '../DrawThought';
 
 const treeImg = new Image();
 treeImg.src = retroTreeUrl;
@@ -13,6 +14,7 @@ export class ApproachScene extends Scene {
   player!: Player;
   arrows: Arrow[] = [];
   time = 0;
+  thoughtAlpha = 0;
   
   stars: {x: number, y: number, size: number}[] = [];
   
@@ -96,6 +98,8 @@ export class ApproachScene extends Scene {
 
   update(dt: number) {
     this.time += dt;
+    // Thought fades in over 2s then stays
+    if (this.thoughtAlpha < 1) this.thoughtAlpha = Math.min(1, this.thoughtAlpha + dt / 2);
     this.player.update(dt);
     
     for (const arrow of this.arrows) {
@@ -594,11 +598,19 @@ export class ApproachScene extends Scene {
     drawForegroundPine(6800, 800, 850, 12);
     ctx.restore();
 
+    ctx.restore();
+
     // Global Blue Atmospheric Tint
     ctx.save();
     ctx.resetTransform();
-    ctx.fillStyle = 'rgba(26, 42, 74, 0.15)'; // Deep blue atmospheric tint
+    ctx.fillStyle = 'rgba(26, 42, 74, 0.15)';
     ctx.fillRect(0, 0, 1280, 720);
+    ctx.restore();
+
+    // Odysseus thought
+    ctx.save();
+    ctx.resetTransform();
+    drawThought(ctx, 'I must reach the palace of Ithaca... walk right.', this.thoughtAlpha);
     ctx.restore();
   }
 }

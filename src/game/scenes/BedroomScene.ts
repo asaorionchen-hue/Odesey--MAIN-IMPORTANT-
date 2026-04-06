@@ -3,6 +3,10 @@ import { Player } from '../Player';
 import { Arrow } from '../Arrow';
 import { PALETTE, DEFAULT_FADE_MS } from '../Constants';
 import { fillWithTexture, getTextureImage } from '../Textures';
+import retroTreeUrl from '../../RetroTree.png';
+
+const treeImg = new Image();
+treeImg.src = retroTreeUrl;
 
 export class BedroomScene extends Scene {
   player!: Player;
@@ -54,6 +58,8 @@ export class BedroomScene extends Scene {
           this.engine.globalState.trialActive = false;
           this.engine.globalState.hasBow = false;
           this.engine.globalState.trialCompleted = false;
+          this.engine.globalState.playerHealth = this.engine.globalState.playerMaxHealth;
+          this.engine.globalState.playerInvincibleTimer = 0;
           
           import('./TitleScene').then(({ TitleScene }) => {
             this.engine.switchScene(new TitleScene(), DEFAULT_FADE_MS);
@@ -192,63 +198,28 @@ export class BedroomScene extends Scene {
     ctx.save();
     ctx.translate(840, 650);
     
-    // Branches
-    const drawBranch = (y: number, angle: number, len: number, ws: number, we: number, c: string, sway: number) => {
+    // Olive Tree (Pre-made asset)
+    if (treeImg.complete && treeImg.naturalHeight > 0) {
+      const size = 650;
+      const typeIndex = 2; // Selection for a gnarly-looking tree
+      const col = typeIndex % 4;
+      const row = Math.floor(typeIndex / 4);
+      
       ctx.save();
-      ctx.translate(0, -y);
-      ctx.rotate((angle + sway) * Math.PI / 180);
-      ctx.fillStyle = c;
-      ctx.beginPath();
-      ctx.moveTo(0, -ws/2);
-      ctx.lineTo(len, -we/2);
-      ctx.lineTo(len, we/2);
-      ctx.lineTo(0, ws/2);
-      ctx.fill();
+      // Position the base of the tree near the back of the bed frame
+      ctx.translate(0, -90);
+      
+      // Filter it to fit the dark bedroom aesthetic
+      ctx.filter = `brightness(25%) sepia(20%) hue-rotate(15deg) saturate(110%)`;
+      ctx.drawImage(treeImg, col * 256, row * 256, 256, 256, -size / 2 + 20, -size, size, size);
       ctx.restore();
-    };
-    
-    drawBranch(300, -140, 220, 18, 6, '#2a1c0c', Math.sin(this.time * 0.5) * 1.8);
-    drawBranch(280, -50, 180, 14, 5, '#281a0a', Math.sin(this.time * 0.5 + 1.2) * 1.8);
-    drawBranch(340, -160, 140, 10, 4, '#261808', Math.sin(this.time * 0.6 + 0.6) * 2.2);
-    drawBranch(360, -30, 120, 8, 3, '#261808', Math.sin(this.time * 0.55 + 1.8) * 2.0);
-    
-    // Trunk
-    ctx.fillStyle = '#2e2010';
-    ctx.beginPath();
-    ctx.moveTo(-30, 0);
-    ctx.lineTo(-30 + 12, -80);
-    ctx.lineTo(-30 - 16, -160);
-    ctx.lineTo(-30 + 20, -240);
-    ctx.lineTo(-30 - 10, -320);
-    ctx.lineTo(-14, -420);
-    ctx.lineTo(14, -420);
-    ctx.lineTo(30 - 10, -320);
-    ctx.lineTo(30 + 20, -240);
-    ctx.lineTo(30 - 16, -160);
-    ctx.lineTo(30 + 12, -80);
-    ctx.lineTo(30, 0);
-    ctx.fill();
-    
-    // Canopy
-    const clusters = [
-      { x: -140, y: -20, w: 160, h: 120 },
-      { x: 0,    y: -40, w: 140, h: 110 },
-      { x: 120,  y: -10, w: 130, h: 100 },
-      { x: -80,  y: 30,  w: 120, h: 90 },
-      { x: 80,   y: 20,  w: 110, h: 80 }
-    ];
-    for (const c of clusters) {
-      ctx.fillStyle = '#0a1205';
-      ctx.beginPath();
-      ctx.ellipse(-20 + c.x, -490 + c.y, c.w/2, c.h/2, 0, 0, Math.PI*2);
-      ctx.fill();
     }
     
     // Fireflies in the tree
     for (let i = 0; i < 25; i++) {
-      // Deterministic pseudo-random positions within the canopy area
-      const fx = Math.sin(i * 13.5) * 140 - 20;
-      const fy = Math.cos(i * 7.2) * 80 - 490;
+      // Deterministic pseudo-random positions roughly mapping to the new tree's canopy
+      const fx = Math.sin(i * 13.5) * 160 + 20;
+      const fy = Math.cos(i * 7.2) * 180 - 450;
       
       // Slow twinkle effect
       const twinkle = Math.sin(this.time * 1.5 + i * 2.1) * 0.5 + 0.5;

@@ -6,6 +6,7 @@ import { GreatHallScene } from './GreatHallScene';
 import retroTreeUrl from '../../RetroTree.png';
 import { fillWithTexture, getTextureImage } from '../Textures';
 import { drawTorch } from '../Torch';
+import { drawThought } from '../DrawThought';
 
 const treeImg = new Image();
 treeImg.src = retroTreeUrl;
@@ -14,6 +15,7 @@ export class CourtyardScene extends Scene {
   player!: Player;
   arrows: Arrow[] = [];
   time = 0;
+  thoughtAlpha = 0;
   
   stars: {x: number, y: number, size: number}[] = [];
 
@@ -43,6 +45,8 @@ export class CourtyardScene extends Scene {
 
   update(dt: number) {
     this.time += dt;
+    // Thought fades in over 2s then stays
+    if (this.thoughtAlpha < 1) this.thoughtAlpha = Math.min(1, this.thoughtAlpha + dt / 2);
     this.player.update(dt);
     
     for (const arrow of this.arrows) {
@@ -287,6 +291,12 @@ export class CourtyardScene extends Scene {
     ctx.resetTransform();
     ctx.fillStyle = 'rgba(26, 42, 74, 0.15)'; // Deep blue atmospheric tint
     ctx.fillRect(0, 0, 1280, 720);
+    ctx.restore();
+
+    // Odysseus thought
+    ctx.save();
+    ctx.resetTransform();
+    drawThought(ctx, 'I must enter the great hall and face the suitors.', this.thoughtAlpha);
     ctx.restore();
   }
 }
