@@ -22,6 +22,7 @@ export class Player {
   vy = 0;
   facing: 'left' | 'right' = 'right';
   state: 'idle' | 'walk' | 'jump' | 'bow_draw' | 'bow_idle' | 'attack' = 'idle';
+  allowJump: boolean = false;
   
   bowDrawTime = 0;
   animTime = 0;
@@ -164,7 +165,7 @@ export class Player {
         if (this.vy === 0) this.state = this.engine.globalState.hasBow ? 'bow_idle' : 'idle';
       }
       
-      if (input.isDown(['ArrowUp', 'KeyW', 'Space']) && this.vy === 0) {
+      if (input.isDown(['ArrowUp', 'KeyW', 'Space']) && this.vy === 0 && this.allowJump) {
         this.vy = this.jumpVelocity;
         this.state = 'jump';
       }
@@ -191,7 +192,14 @@ export class Player {
     ctx.save();
     ctx.translate(this.x, this.y);
     
-
+    // Ground shadow
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 22, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
     
     // Character Image
     let imgToDraw = imgIdle;

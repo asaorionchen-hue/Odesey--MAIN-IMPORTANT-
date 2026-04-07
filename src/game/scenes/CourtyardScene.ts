@@ -7,6 +7,7 @@ import retroTreeUrl from '../../RetroTree.png';
 import { fillWithTexture, getTextureImage } from '../Textures';
 import { drawTorch } from '../Torch';
 import { drawThought } from '../DrawThought';
+import { DustMotes } from '../DustMotes';
 
 const treeImg = new Image();
 treeImg.src = retroTreeUrl;
@@ -18,6 +19,7 @@ export class CourtyardScene extends Scene {
   thoughtAlpha = 0;
   
   stars: {x: number, y: number, size: number}[] = [];
+  dustMotes = new DustMotes({ sceneWidth: 2560, sceneHeight: 620, count: 30, color: '160, 150, 130', speed: 0.6 });
 
   constructor() {
     super();
@@ -48,6 +50,7 @@ export class CourtyardScene extends Scene {
     // Thought fades in over 2s then stays
     if (this.thoughtAlpha < 1) this.thoughtAlpha = Math.min(1, this.thoughtAlpha + dt / 2);
     this.player.update(dt);
+    this.dustMotes.update(dt);
     
     for (const arrow of this.arrows) {
       arrow.update(dt);
@@ -171,12 +174,26 @@ export class CourtyardScene extends Scene {
     ctx.arc(60, 340, 70 + 60, Math.PI, 0);
     ctx.arc(60, 340, 70, 0, Math.PI, true);
     ctx.fill();
-    ctx.fillStyle = '#04060f';
+    // Arch interior — depth gradient instead of flat black
+    ctx.save();
     ctx.beginPath();
     ctx.arc(60, 340, 70, Math.PI, 0);
     ctx.lineTo(60 + 70, 620);
     ctx.lineTo(60 - 70, 620);
-    ctx.fill();
+    ctx.clip();
+    const archGrad = ctx.createLinearGradient(60, 280, 60, 620);
+    archGrad.addColorStop(0, '#0a0e1a');
+    archGrad.addColorStop(0.6, '#04060f');
+    archGrad.addColorStop(1, '#020308');
+    ctx.fillStyle = archGrad;
+    ctx.fillRect(60 - 70, 270, 140, 350);
+    // Fog at base
+    const archFog = ctx.createLinearGradient(60, 580, 60, 620);
+    archFog.addColorStop(0, 'rgba(20, 24, 40, 0)');
+    archFog.addColorStop(1, 'rgba(20, 24, 40, 0.4)');
+    ctx.fillStyle = archFog;
+    ctx.fillRect(60 - 70, 580, 140, 40);
+    ctx.restore();
     
     // Palace doors right
     ctx.fillStyle = '#2a3040';
@@ -203,7 +220,7 @@ export class CourtyardScene extends Scene {
     ctx.fillRect(1200 - 40 - 7, 530, 14, 60);
     ctx.fillRect(1200 + 40 - 7, 530, 14, 60);
     
-    // Torches (drawn behind trees/bushes)
+    // Torches with dynamic flickering glow
     const torches = [
       { x: 800, y: 400 },
       { x: 2100, y: 400 }
@@ -211,19 +228,31 @@ export class CourtyardScene extends Scene {
     
     for (let i = 0; i < torches.length; i++) {
       const t = torches[i];
-      drawTorch(ctx, t.x, t.y, this.time, i * 1.5);
-      
       const phase = i * 1.5;
-      const flicker = Math.sin(this.time * 3.2 + phase) * 0.2 + (Math.random() * 0.1);
+      drawTorch(ctx, t.x, t.y, this.time, phase);
       
-      // Light radius
+      // Dynamic flickering glow — radius and intensity pulse
+      const flickerA = Math.sin(this.time * 3.2 + phase) * 0.15;
+      const flickerB = Math.sin(this.time * 7.1 + phase * 2) * 0.08;
+      const flickerC = Math.random() * 0.06;
+      const flicker = flickerA + flickerB + flickerC;
+      const glowRadius = 140 + Math.sin(this.time * 3.8 + phase) * 25 + Math.random() * 10;
+      
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
-      const rgrad = ctx.createRadialGradient(t.x, t.y - 8, 0, t.x, t.y - 8, 120);
-      rgrad.addColorStop(0, `rgba(255, 136, 32, ${0.25 + flicker*0.05})`);
-      rgrad.addColorStop(1, 'rgba(255, 136, 32, 0)');
+      const rgrad = ctx.createRadialGradient(t.x, t.y - 8, 0, t.x, t.y - 8, glowRadius);
+      rgrad.addColorStop(0, `rgba(255, 136, 32, ${0.30 + flicker})`);
+      rgrad.addColorStop(0.5, `rgba(255, 100, 20, ${0.10 + flicker * 0.3})`);
+      rgrad.addColorStop(1, 'rgba(255, 80, 10, 0)');
       ctx.fillStyle = rgrad;
-      ctx.fillRect(t.x - 120, t.y - 128, 240, 240);
+      ctx.fillRect(t.x - glowRadius, t.y - glowRadius - 8, glowRadius * 2, glowRadius * 2);
+
+      // Secondary warm highlight on wall
+      const wallGlow = ctx.createRadialGradient(t.x, t.y - 40, 0, t.x, t.y - 40, 70);
+      wallGlow.addColorStop(0, `rgba(255, 180, 80, ${0.06 + flicker * 0.12})`);
+      wallGlow.addColorStop(1, 'rgba(255, 180, 80, 0)');
+      ctx.fillStyle = wallGlow;
+      ctx.fillRect(t.x - 70, t.y - 110, 140, 140);
       ctx.restore();
     }
     
@@ -282,6 +311,8 @@ export class CourtyardScene extends Scene {
       ctx.fillRect(0, 620, 2560, 100);
     }, 0.18);
     
+    // Ambient particles
+    this.dustMotes.draw(ctx, this.engine.camera.x);
     
     this.player.draw(ctx);
     for (const arrow of this.arrows) arrow.draw(ctx);

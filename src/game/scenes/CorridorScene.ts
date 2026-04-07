@@ -7,6 +7,7 @@ import { fillWithTexture, getTextureImage } from '../Textures';
 import { drawTorch } from '../Torch';
 import retroTreeUrl from '../../RetroTree.png';
 import { drawThought } from '../DrawThought';
+import { DustMotes } from '../DustMotes';
 
 const treeImg = new Image();
 treeImg.src = retroTreeUrl;
@@ -18,6 +19,7 @@ export class CorridorScene extends Scene {
   thoughtAlpha = 0;
 
   stars: { x: number, y: number, size: number, phase: number }[] = [];
+  dustMotes = new DustMotes({ sceneWidth: 1280, sceneHeight: 650, count: 35, color: '180, 170, 155' });
   
   windowTrees = Array.from({length: 80}, (_, i) => ({
     x: i * 20 + (Math.random() * 20 - 10),
@@ -57,6 +59,7 @@ export class CorridorScene extends Scene {
     // Thought fades in over 2s then stays
     if (this.thoughtAlpha < 1) this.thoughtAlpha = Math.min(1, this.thoughtAlpha + dt / 2);
     this.player.update(dt);
+    this.dustMotes.update(dt);
 
     for (const arrow of this.arrows) {
       arrow.update(dt);
@@ -96,12 +99,11 @@ export class CorridorScene extends Scene {
       }
     }
 
-
-
     const windowCenters = [80, 560, 1040];
 
     for (const wx of windowCenters) {
-      // Window arch
+      // ── Arch interior depth gradient (replace flat black) ──────
+      // Outer arch shape (stone frame)
       ctx.fillStyle = '#1e2430';
       ctx.fillRect(wx - 60 - 40, 220, 120 + 80, 280);
       ctx.beginPath();
@@ -112,17 +114,23 @@ export class CorridorScene extends Scene {
       ctx.beginPath();
       ctx.rect(wx - 60, 220, 120, 280);
       ctx.arc(wx, 220, 60, Math.PI, 0);
-      ctx.clip(); // Clip everything else to this window!
+      ctx.clip(); // Clip to window opening
 
-      // Night sky panel (Solid sky)
-      ctx.fillStyle = '#0a0d1f';
+      // ── Parallax sky panel with depth gradient ─────────────────
+      // Deep sky — subtle gradient from dark navy to black (not flat)
+      const skyGrad = ctx.createLinearGradient(wx, 140, wx, 500);
+      skyGrad.addColorStop(0, '#060a1a');
+      skyGrad.addColorStop(0.5, '#0a0d1f');
+      skyGrad.addColorStop(1, '#04060c');
+      ctx.fillStyle = skyGrad;
       ctx.fill();
 
-      // Stars within window area
+      // Stars within window area — slow time-based drift for parallax feel
       ctx.fillStyle = '#b8c8e8';
       for (const star of this.stars) {
+        const driftX = star.x + Math.sin(this.time * 0.08 + star.phase) * 3;
         ctx.globalAlpha = 0.4 + 0.4 * Math.sin(this.time * 2 + star.phase);
-        ctx.fillRect(star.x, star.y, star.size, star.size);
+        ctx.fillRect(driftX, star.y, star.size, star.size);
       }
       ctx.globalAlpha = 1.0;
 
@@ -146,6 +154,7 @@ export class CorridorScene extends Scene {
       const winY = 220, winW = 120, winH = 280;
       const horizonY = winY + 60;
       
+      // Ocean — slight time-based horizontal drift for depth
       ctx.fillStyle = PALETTE.sea_dark;
       ctx.fillRect(-200, horizonY, 2560, winH);
       ctx.fillStyle = PALETTE.sea_mid;
@@ -178,6 +187,13 @@ export class CorridorScene extends Scene {
         }
       }
 
+      // ── Fog/mist at the base of each arch opening ─────────────
+      const fogGrad = ctx.createLinearGradient(wx, winY + winH - 40, wx, winY + winH);
+      fogGrad.addColorStop(0, 'rgba(20, 24, 40, 0)');
+      fogGrad.addColorStop(1, 'rgba(20, 24, 40, 0.5)');
+      ctx.fillStyle = fogGrad;
+      ctx.fillRect(wx - 60, winY + winH - 40, 120, 40);
+
       ctx.restore();
 
       // Moonbeam 
@@ -197,36 +213,59 @@ export class CorridorScene extends Scene {
       ctx.restore();
     }
 
-    // Torches 
+    // ── Torches with dynamic flickering light radius ────────────
     const torches = [
-      { x: 320, y: 380, phase: 0.0 }, // Adjusted positions to be between windows
+      { x: 320, y: 380, phase: 0.0 },
       { x: 800, y: 380, phase: 0.7 }
     ];
 
     for (const t of torches) {
       drawTorch(ctx, t.x, t.y, this.time, t.phase);
 
-      const flicker = Math.sin(this.time * 2.8 + t.phase) * 0.2 + (Math.random() * 0.1);
+      // Dynamic flickering glow — radius and intensity pulse
+      const flickerA = Math.sin(this.time * 2.8 + t.phase) * 0.15;
+      const flickerB = Math.sin(this.time * 7.3 + t.phase * 2) * 0.08;
+      const flickerC = Math.random() * 0.06;
+      const flicker = flickerA + flickerB + flickerC;
+      const glowRadius = 110 + Math.sin(this.time * 3.5 + t.phase) * 20 + Math.random() * 8;
 
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
-      const rgrad = ctx.createRadialGradient(t.x, t.y - 8, 0, t.x, t.y - 8, 90);
-      rgrad.addColorStop(0, `rgba(255, 136, 32, ${0.28 + flicker * 0.05})`);
-      rgrad.addColorStop(1, 'rgba(255, 136, 32, 0)');
+
+      // Warm amber glow on surrounding stone
+      const rgrad = ctx.createRadialGradient(t.x, t.y - 8, 0, t.x, t.y - 8, glowRadius);
+      rgrad.addColorStop(0, `rgba(255, 136, 32, ${0.32 + flicker})`);
+      rgrad.addColorStop(0.5, `rgba(255, 100, 20, ${0.12 + flicker * 0.3})`);
+      rgrad.addColorStop(1, 'rgba(255, 80, 10, 0)');
       ctx.fillStyle = rgrad;
-      ctx.fillRect(t.x - 90, t.y - 98, 180, 180);
+      ctx.fillRect(t.x - glowRadius, t.y - glowRadius - 8, glowRadius * 2, glowRadius * 2);
+
+      // Secondary warm highlight on wall behind torch
+      const wallGlow = ctx.createRadialGradient(t.x, t.y - 40, 0, t.x, t.y - 40, 60);
+      wallGlow.addColorStop(0, `rgba(255, 180, 80, ${0.08 + flicker * 0.15})`);
+      wallGlow.addColorStop(1, 'rgba(255, 180, 80, 0)');
+      ctx.fillStyle = wallGlow;
+      ctx.fillRect(t.x - 60, t.y - 100, 120, 120);
+
       ctx.restore();
     }
 
-
-    // Floor — dirty cobblestone texture
-    fillWithTexture(ctx, 'dirty', 'rgba(30, 32, 48, 0.65)', () => {
+    // ── Floor — cobblestone texture matching the wall ────────────
+    fillWithTexture(ctx, 'cobblestone', 'rgba(22, 24, 36, 0.7)', () => {
       ctx.fillRect(0, 650, 1280, 70);
     }, 0.15);
 
+    // Subtle floor edge line where wall meets floor
+    ctx.strokeStyle = 'rgba(10, 12, 18, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 650);
+    ctx.lineTo(1280, 650);
+    ctx.stroke();
+
     // Moonbeam patches on floor
-    const pulse = Math.sin(this.time * 0.22) * 0.04;
-    ctx.fillStyle = `rgba(184, 200, 232, ${0.12 + pulse})`;
+    const floorPulse = Math.sin(this.time * 0.22) * 0.04;
+    ctx.fillStyle = `rgba(184, 200, 232, ${0.12 + floorPulse})`;
     const floorPatches = [120, 600, 1080];
     for (const fx of floorPatches) {
       ctx.beginPath();
@@ -234,6 +273,8 @@ export class CorridorScene extends Scene {
       ctx.fill();
     }
 
+    // Dust motes
+    this.dustMotes.draw(ctx);
 
     this.player.draw(ctx);
     for (const arrow of this.arrows) arrow.draw(ctx);

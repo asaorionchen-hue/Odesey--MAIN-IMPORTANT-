@@ -7,6 +7,7 @@ import { fillWithTexture, getTextureImage } from '../Textures';
 import retroTreeUrl from '../../RetroTree.png';
 import { drawThought } from '../DrawThought';
 import { Suitor } from '../Suitor';
+import { DustMotes } from '../DustMotes';
 
 const treeImg = new Image();
 treeImg.src = retroTreeUrl;
@@ -55,6 +56,7 @@ export class GreatHallScene extends Scene {
   victoryTextAlpha = 0;
   damageFlash = 0;
   deathFadeTimer = 0;
+  dustMotes = new DustMotes({ sceneWidth: 2560, sceneHeight: 620, count: 25, color: '180, 160, 130', speed: 0.8 });
 
   onEnter(direction: 'left' | 'right' = 'left') {
     const spawnX = direction === 'right' ? 2460 : 120;
@@ -143,6 +145,7 @@ export class GreatHallScene extends Scene {
     
     const targetCamX = Math.max(0, Math.min(this.player.x - 640, 2560 - 1280));
     this.engine.camera.x += (targetCamX - this.engine.camera.x) * 5 * dt;
+    this.dustMotes.update(dt);
   }
 
   private updateTrial(dt: number) {
@@ -558,6 +561,9 @@ export class GreatHallScene extends Scene {
         ctx.globalCompositeOperation = 'source-over';
       }
     }
+    
+    // Dust motes
+    this.dustMotes.draw(ctx, this.engine.camera.x);
     
     // Suitors
     for (const s of this.suitors) {

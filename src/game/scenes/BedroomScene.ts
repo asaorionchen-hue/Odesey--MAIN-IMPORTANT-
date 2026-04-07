@@ -4,6 +4,7 @@ import { Arrow } from '../Arrow';
 import { PALETTE, DEFAULT_FADE_MS } from '../Constants';
 import { fillWithTexture, getTextureImage } from '../Textures';
 import retroTreeUrl from '../../RetroTree.png';
+import { DustMotes } from '../DustMotes';
 
 const treeImg = new Image();
 treeImg.src = retroTreeUrl;
@@ -15,6 +16,7 @@ export class BedroomScene extends Scene {
   
   endingState = 0; // 0: not started, 1-7: steps
   endingTimer = 0;
+  dustMotes = new DustMotes({ sceneWidth: 1280, sceneHeight: 650, count: 20, color: '170, 160, 145', speed: 0.5 });
 
   onEnter(direction: 'left' | 'right' = 'left') {
     const spawnX = direction === 'right' ? 1160 : 100;
@@ -31,6 +33,7 @@ export class BedroomScene extends Scene {
 
   update(dt: number) {
     this.time += dt;
+    this.dustMotes.update(dt);
     
     if (this.endingState === 0) {
       this.player.update(dt);
@@ -295,6 +298,9 @@ export class BedroomScene extends Scene {
     }
     
     ctx.restore();
+    
+    // Dust motes
+    this.dustMotes.draw(ctx);
     
     // Player
     this.player.draw(ctx);
