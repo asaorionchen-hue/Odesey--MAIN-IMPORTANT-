@@ -11,21 +11,16 @@ import { fillWithTexture } from '../../Textures';
 const SCENE_WIDTH = 3200;
 const FLOOR_Y = 610;
 
-// Background hill from flat shore up to spirits field
 function getBackgroundHillY(x: number): number {
-  if (x < 600) return FLOOR_Y; // flat shore
-  if (x > 3000) return FLOOR_Y; // flat far end
-  // Hill between x=600..1200 rises, plateau 1200..2600, descends 2600..3000
-  if (x <= 1200) {
-    const t = (x - 600) / 600;
-    return FLOOR_Y - t * t * 80; // ease-in rise to 80px above FLOOR_Y
+  if (x < 600) return FLOOR_Y; 
+  // Majestic hill rising smoothly from the ground
+  if (x <= 2200) {
+    const t = (x - 600) / 1600;
+    // Smooth S-curve
+    const ease = (1 - Math.cos(t * Math.PI)) / 2;
+    return FLOOR_Y - ease * 350; // Peak reaches 350px high
   }
-  if (x <= 2600) {
-    return FLOOR_Y - 80; // plateau at top of hill
-  }
-  // 2600..3000 descend back
-  const t = (x - 2600) / 400;
-  return FLOOR_Y - 80 + t * t * 80;
+  return FLOOR_Y - 350; // Massive plateau
 }
 
 export class CimmerianShoreScene extends Scene {
@@ -159,7 +154,19 @@ export class CimmerianShoreScene extends Scene {
     }
 
     // Update crowd drift
-    for (const s of this.crowd) { s.x -= 8 * dt; }
+    for (const s of this.crowd) { 
+      s.x -= 8 * dt; 
+      // Wrap ghosts back to the far right of the hill
+      if (s.x < 1100) s.x += 2100;
+      
+      // Pin y to the hill surface at this x position
+      const hillY = getBackgroundHillY(s.x);
+      // Only allow ghosts on the upper portion of the hill (above FLOOR_Y - 80)
+      const maxY = FLOOR_Y - 80;
+      s.y = hillY + (s.scale * 0.3) * (maxY - hillY);
+      // Clamp so they never go below the upper hill line
+      if (s.y > maxY) s.y = maxY;
+    }
   }
 
   draw(ctx: CanvasRenderingContext2D) {
@@ -199,36 +206,80 @@ export class CimmerianShoreScene extends Scene {
     ctx.restore();
 
     // ── Cimmerian cloud ceiling ──────────────────────────────────
-    ctx.save();
-    ctx.translate(camX, 0);
-    ctx.fillStyle = B11.cimmerian_grey;
-    ctx.globalAlpha = 0.9;
-    ctx.fillRect(0, 0, 1280, 250);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = B11.underworld_mid;
-    ctx.globalAlpha = 0.6;
-    for (let i = 0; i < 8; i++) {
-      const wx = (i * 180 + this.time * 6) % 1280;
-      ctx.beginPath();
-      ctx.ellipse(wx, 100 + i * 18, 120, 50, 0, 0, Math.PI * 2);
-      ctx.fill();
+    const cloud1Img = getTextureImage('clouds_1');
+    const cloud2Img = getTextureImage('clouds_2');
+    
+    if (cloud1Img && cloud1Img.complete && cloud1Img.naturalWidth > 0 && 
+        cloud2Img && cloud2Img.complete && cloud2Img.naturalWidth > 0) {
+      
+      const c1W = cloud1Img.naturalWidth * 2.5;
+      const c1H = cloud1Img.naturalHeight * 2.5;
+      const c2W = cloud2Img.naturalWidth * 2.5;
+      const c2H = cloud2Img.naturalHeight * 2.5;
+      
+      // Far clouds
+      ctx.save();
+      ctx.translate(camX * 0.98, 0);
+      const gap1 = c1W * 1.5;
+      for (let i = -1; i <= 6; i++) {
+        ctx.globalAlpha = 0.45;
+        ctx.filter = `brightness(25%) sepia(30%) hue-rotate(210deg)`;
+        ctx.drawImage(cloud1Img, i * gap1, -20, c1W, c1H);
+      }
+      ctx.filter = 'none';
+      ctx.restore();
+      
+      // Near clouds
+      ctx.save();
+      ctx.translate(camX * 0.95, 0);
+      const gap2 = c2W * 1.8;
+      for (let i = -1; i <= 6; i++) {
+        ctx.globalAlpha = 0.65;
+        ctx.filter = `brightness(20%) sepia(40%) hue-rotate(220deg)`;
+        ctx.drawImage(cloud2Img, i * gap2 + (c2W * 0.6), 40, c2W, c2H);
+      }
+      ctx.filter = 'none';
+      ctx.restore();
+      
+    } else {
+      ctx.save();
+      ctx.translate(camX, 0);
+      ctx.fillStyle = B11.cimmerian_grey;
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(0, 0, 1280, 250);
+      ctx.globalAlpha = 1;
+      ctx.restore();
     }
-    ctx.globalAlpha = 1;
-    ctx.restore();
 
-    // ── Oceanus sea (left side) ──────────────────────────────────
+    // ── Oceanus sea — painted ON TOP of clouds to cut them off at the horizon ──
+    // No parallax on the sea fill so it fully covers every cloud layer beneath it
+    const HORIZON_Y = 440;
     ctx.save();
-    ctx.translate(-camX * 0.05, 0);
-    const seaGrad = ctx.createLinearGradient(0, 440, 0, 720);
-    seaGrad.addColorStop(0, '#060810');
+    ctx.globalAlpha = 1;
+    ctx.filter = 'none';
+    // Solid opaque sea that hides everything below the horizon
+    const seaGrad = ctx.createLinearGradient(0, HORIZON_Y, 0, 720);
+    seaGrad.addColorStop(0, '#0a0e1a');  // Slightly lighter at the horizon so the line is visible
+    seaGrad.addColorStop(0.05, '#060810');
     seaGrad.addColorStop(1, '#020408');
     ctx.fillStyle = seaGrad;
-    ctx.fillRect(0, 440, 700, 280);
+    // Extra-wide fill from far left to far right so no gap at any camera position
+    ctx.fillRect(-200, HORIZON_Y, SCENE_WIDTH + 2000, 300);
+    
+    // Visible horizon line — thin bright stroke so the sky/sea boundary is clear
+    ctx.strokeStyle = 'rgba(80, 90, 130, 0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-200, HORIZON_Y);
+    ctx.lineTo(SCENE_WIDTH + 2000, HORIZON_Y);
+    ctx.stroke();
+    
+    // Subtle wave lines on the sea
     ctx.fillStyle = '#0e1020';
     for (let i = 0; i < 10; i++) {
-      const wy = 470 + i * 16 + Math.sin(this.time * 0.4 + i) * 2;
+      const wy = HORIZON_Y + 30 + i * 16 + Math.sin(this.time * 0.4 + i) * 2;
       ctx.globalAlpha = 0.5;
-      ctx.fillRect(0, wy, 700, 2);
+      ctx.fillRect(-200, wy, SCENE_WIDTH + 2000, 2);
     }
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -237,22 +288,26 @@ export class CimmerianShoreScene extends Scene {
     this.drawShip(ctx);
 
     // ── Dead land (hill polygon) ─────────────────────────────────
+    ctx.save();
+    // Parallax anchors it in the background depth
+    ctx.translate(-camX * 0.15, 0);
+    
     ctx.beginPath();
-    ctx.moveTo(600, FLOOR_Y);
-    // Sample the hill terrain
-    for (let lx = 600; lx <= 3000; lx += 20) {
+    ctx.moveTo(0, FLOOR_Y);
+    // Trace the beautiful hill contour
+    for (let lx = 0; lx <= SCENE_WIDTH + 800; lx += 20) {
       ctx.lineTo(lx, getBackgroundHillY(lx));
     }
-    ctx.lineTo(3000, FLOOR_Y);
-    ctx.lineTo(SCENE_WIDTH, FLOOR_Y);
-    ctx.lineTo(SCENE_WIDTH, 280);
-    ctx.lineTo(600, 280);
+    // Drop solidly to floor
+    ctx.lineTo(SCENE_WIDTH + 800, FLOOR_Y);
     ctx.closePath();
-    const landGrad = ctx.createLinearGradient(600, 0, SCENE_WIDTH, 0);
-    landGrad.addColorStop(0, '#0a0818');
-    landGrad.addColorStop(1, '#04020c');
+    
+    const landGrad = ctx.createLinearGradient(0, 200, 0, FLOOR_Y);
+    landGrad.addColorStop(0, '#533c7d'); // Highly visible solid purple peak!
+    landGrad.addColorStop(1, '#2c1e48'); // Distinct dark purple base
     ctx.fillStyle = landGrad;
     ctx.fill();
+    ctx.restore();
 
     // ── Ground — dirty cobblestone texture ────────────────────────
     fillWithTexture(ctx, 'dirty', 'rgba(26, 16, 16, 0.72)', () => {
@@ -285,7 +340,12 @@ export class CimmerianShoreScene extends Scene {
     ctx.restore();
 
     // ── Background shades ────────────────────────────────────────
-    drawCrowd(ctx, this.crowd, B11.shade_faint, 0.18, this.time, -200, SCENE_WIDTH + 200, SCENE_WIDTH + 400);
+    ctx.save();
+    // Match hill's parallax so ghosts move with the terrain
+    ctx.translate(-camX * 0.15, 0);
+    // Use huge xMin/xMax to prevent drawCrowd from re-wrapping (we handle it in update)
+    drawCrowd(ctx, this.crowd, B11.shade_faint, 0.18, this.time, -99999, 99999, 1);
+    ctx.restore();
 
     // ── Ritual cutscene visuals (z-index 1–2: behind player) ─────
     if (this.ritualStarted) {

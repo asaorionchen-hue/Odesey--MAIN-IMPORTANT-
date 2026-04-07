@@ -60,8 +60,14 @@ export class Player {
 
   /** Get the hit zone rectangle in world coords [x, y, w, h] */
   getAttackHitBox(): [number, number, number, number] {
-    const offX = this.facing === 'right' ? 80 : -80 - 120;
-    return [this.x + offX, this.y - 20 - 60, 120, 60];
+    const bodyHalf = this.width / 2; // 14px
+    const swordReach = 60;
+    if (this.facing === 'right') {
+      // From player's left edge to sword tip in front
+      return [this.x - bodyHalf, this.y - 70, bodyHalf + swordReach, 70];
+    } else {
+      return [this.x - swordReach, this.y - 70, swordReach + bodyHalf, 70];
+    }
   }
 
   /** Trigger the attack animation */

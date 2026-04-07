@@ -258,7 +258,7 @@ export class GreatHallScene extends Scene {
         const pw = 28;
         const ph = 70;
         if (ax < px + pw && ax + aw > px && ay < py + ph && ay + ah > py) {
-          gs.playerHealth--;
+          gs.playerHealth -= 0.5;
           gs.playerInvincibleTimer = 1.2; // 1.2s of i-frames
           s.hasDamagedThisSwing = true;
           this.damageFlash = 0.3;
@@ -650,27 +650,28 @@ export class GreatHallScene extends Scene {
       for (let i = 0; i < gs.playerMaxHealth; i++) {
         const hx = 20 + i * 28;
         const hy = 20;
-        const filled = i < gs.playerHealth;
+        const isFull = i < Math.floor(gs.playerHealth);
+        const isHalf = !isFull && i === Math.floor(gs.playerHealth) && (gs.playerHealth % 1) >= 0.5;
         
         // Heart shape
         ctx.save();
         ctx.translate(hx + 10, hy + 10);
         
         // Pulse when low health
-        if (gs.playerHealth <= 2 && filled) {
+        if (gs.playerHealth <= 1 && (isFull || isHalf)) {
           const pulse = 1 + Math.sin(this.time * 6) * 0.08;
           ctx.scale(pulse, pulse);
         }
         
-        ctx.beginPath();
-        ctx.moveTo(0, 3);
-        ctx.bezierCurveTo(-2, -3, -10, -5, -10, 2);
-        ctx.bezierCurveTo(-10, 7, 0, 12, 0, 15);
-        ctx.bezierCurveTo(0, 12, 10, 7, 10, 2);
-        ctx.bezierCurveTo(10, -5, 2, -3, 0, 3);
-        ctx.closePath();
-        
-        if (filled) {
+        if (isFull) {
+          // Full heart
+          ctx.beginPath();
+          ctx.moveTo(0, 3);
+          ctx.bezierCurveTo(-2, -3, -10, -5, -10, 2);
+          ctx.bezierCurveTo(-10, 7, 0, 12, 0, 15);
+          ctx.bezierCurveTo(0, 12, 10, 7, 10, 2);
+          ctx.bezierCurveTo(10, -5, 2, -3, 0, 3);
+          ctx.closePath();
           ctx.fillStyle = '#cc2222';
           ctx.fill();
           // Highlight
@@ -678,7 +679,44 @@ export class GreatHallScene extends Scene {
           ctx.beginPath();
           ctx.ellipse(-4, 1, 3, 2, -0.3, 0, Math.PI * 2);
           ctx.fill();
+        } else if (isHalf) {
+          // Half heart — draw empty background first
+          ctx.beginPath();
+          ctx.moveTo(0, 3);
+          ctx.bezierCurveTo(-2, -3, -10, -5, -10, 2);
+          ctx.bezierCurveTo(-10, 7, 0, 12, 0, 15);
+          ctx.bezierCurveTo(0, 12, 10, 7, 10, 2);
+          ctx.bezierCurveTo(10, -5, 2, -3, 0, 3);
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(40,20,20,0.6)';
+          ctx.fill();
+          ctx.strokeStyle = '#4a2020';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          // Clip left half and fill red
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(-12, -8, 12, 26);
+          ctx.clip();
+          ctx.beginPath();
+          ctx.moveTo(0, 3);
+          ctx.bezierCurveTo(-2, -3, -10, -5, -10, 2);
+          ctx.bezierCurveTo(-10, 7, 0, 12, 0, 15);
+          ctx.bezierCurveTo(0, 12, 10, 7, 10, 2);
+          ctx.bezierCurveTo(10, -5, 2, -3, 0, 3);
+          ctx.closePath();
+          ctx.fillStyle = '#cc2222';
+          ctx.fill();
+          ctx.restore();
         } else {
+          // Empty heart
+          ctx.beginPath();
+          ctx.moveTo(0, 3);
+          ctx.bezierCurveTo(-2, -3, -10, -5, -10, 2);
+          ctx.bezierCurveTo(-10, 7, 0, 12, 0, 15);
+          ctx.bezierCurveTo(0, 12, 10, 7, 10, 2);
+          ctx.bezierCurveTo(10, -5, 2, -3, 0, 3);
+          ctx.closePath();
           ctx.fillStyle = 'rgba(40,20,20,0.6)';
           ctx.fill();
           ctx.strokeStyle = '#4a2020';

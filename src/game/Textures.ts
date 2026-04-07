@@ -15,6 +15,8 @@ import moonPhase1Url from '../Moon_Phase_1.png';
 import torchAnimatedUrl from '../Torch Animated.png';
 import fireHearthUrl from '../Pixel fire asset pack v1.2/Pixel Fire Asset Pack Floored/fire asset red floored/Group 5 - 5/Group 5 - 5.png';
 import tileSetGregoUrl from '../tile-set-grego.png';
+import clouds1Url from '../Clouds_V2_clear.png';
+import clouds2Url from '../Clouds_V2-2_clear.png';
 
 /* ------------------------------------------------------------------ */
 /*  Raw Image elements (loaded once, shared across scenes)            */
@@ -38,6 +40,8 @@ const TEXTURE_SOURCES: Record<string, string> = {
   torch: torchAnimatedUrl,
   fire_hearth: fireHearthUrl,
   tile_set_grego: tileSetGregoUrl,
+  clouds_1: clouds1Url,
+  clouds_2: clouds2Url,
 };
 
 const textures: Record<string, TextureEntry> = {};
