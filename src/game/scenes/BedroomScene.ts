@@ -123,30 +123,36 @@ export class BedroomScene extends Scene {
     drawTapestry(300, 200, '#1a1828', '#241e30', '#302838', '#2a2230');
     drawTapestry(900, 200, '#181826', '#22202e', '#2e2836', '#28202e');
     
-    // Window
-    ctx.fillStyle = '#1e2030';
+    // Window Frame Background
+    ctx.fillStyle = '#100e0a';
     ctx.fillRect(60 - 90, 180, 180, 360);
     ctx.beginPath(); ctx.arc(60, 180, 90, Math.PI, 0); ctx.fill();
     
-    ctx.fillStyle = `rgba(184, 200, 232, 0.15)`;
-    ctx.fillRect(60 - 80, 180, 75, 115);
-    ctx.fillRect(60 + 5, 180, 75, 115);
-    ctx.fillRect(60 - 80, 300, 75, 115);
-    ctx.fillRect(60 + 5, 300, 75, 115);
-    ctx.fillRect(60 - 80, 420, 75, 115);
-    ctx.fillRect(60 + 5, 420, 75, 115);
-    ctx.beginPath(); ctx.arc(60, 180, 80, Math.PI, 0); ctx.fill();
+    ctx.save();
+    // Clip to inner window area
+    ctx.beginPath();
+    ctx.arc(60, 180, 80, Math.PI, 0);
+    ctx.rect(60 - 80, 180, 160, 350);
+    ctx.clip();
     
-    // Moon in window
+    // Dark Sky
+    ctx.fillStyle = '#0a0d1f';
+    ctx.fillRect(-20, 80, 160, 450);
+    
+    // Stars
+    ctx.fillStyle = '#b8c8e8';
+    for (let i = 0; i < 20; i++) {
+      const sx = -20 + (Math.abs(Math.sin(i * 123.45)) * 160);
+      const sy = 80 + (Math.abs(Math.cos(i * 321.65)) * 260);
+      const phase = Math.abs(Math.sin(i * 44.4));
+      ctx.globalAlpha = 0.4 + 0.4 * Math.sin(this.time * 2 + phase);
+      ctx.fillRect(sx, sy, 2, 2);
+    }
+    ctx.globalAlpha = 1.0;
+    
+    // Moon
     const moonImg = getTextureImage('moon_phase_1');
     if (moonImg) {
-      ctx.save();
-      // Clip moon to window area
-      ctx.beginPath();
-      ctx.arc(60, 180, 80, Math.PI, 0);
-      ctx.rect(60 - 80, 180, 160, 350);
-      ctx.clip();
-      
       const moonX = 60 + 30; // Positioned in a top pane
       const moonY = 180 + 20;
       const moonSize = 50;
@@ -158,22 +164,67 @@ export class BedroomScene extends Scene {
       
       ctx.globalAlpha = 1.0;
       ctx.drawImage(moonImg, moonX - moonSize / 2, moonY - moonSize / 2, moonSize, moonSize);
-      ctx.restore();
     }
     
-    // Moonbeam
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    ctx.translate(60, 180);
-    ctx.rotate(12 * Math.PI / 180);
-    const pulse = Math.sin(this.time * 0.18) * 0.04;
-    ctx.fillStyle = `rgba(184, 200, 232, ${0.18 + pulse})`;
+    // Sea and Horizon
+    const horizonY = 400;
+    ctx.fillStyle = PALETTE.sea_dark;
+    ctx.fillRect(-20, horizonY, 160, 140);
+    ctx.fillStyle = PALETTE.sea_mid;
+    ctx.fillRect(-20, horizonY, 160, 2);
+    ctx.fillStyle = '#0f1a30'; // waves
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(-20, horizonY + 15 + i * 15 + Math.sin(this.time * 2 + i) * 2, 160, 2);
+    }
+    
+    // Shoreline
+    ctx.fillStyle = '#070a0c'; // Shoreline Hills
     ctx.beginPath();
-    ctx.moveTo(-100, 0);
-    ctx.lineTo(320, -100);
-    ctx.lineTo(320, 100);
-    ctx.lineTo(-100, 0);
+    ctx.moveTo(-20, horizonY + 80);
+    for (let ix = -20; ix <= 140; ix += 20) {
+      ctx.lineTo(ix, horizonY + 30 + Math.sin(ix * 0.02) * 15 + Math.cos(ix * 0.005) * 10);
+    }
+    ctx.lineTo(140, horizonY + 80);
     ctx.fill();
+    
+    // Trees
+    if (treeImg.complete && treeImg.naturalHeight > 0) {
+      ctx.filter = `brightness(15%) hue-rotate(30deg) saturate(90%)`;
+      for (let i = 0; i < 6; i++) {
+        const tx = -10 + i * 30 + (Math.sin(i*7.7)*10);
+        const tHeight = 40 + (Math.cos(i*3.3)*20);
+        const col = i % 4;
+        const row = Math.floor(i / 4) % 2;
+        
+        ctx.save();
+        ctx.translate(tx, horizonY + 80 - 5);
+        if (i%2===0) ctx.scale(-1, 1);
+        ctx.drawImage(treeImg, col * 256, row * 256, 256, 256, -tHeight / 2, -tHeight, tHeight, tHeight);
+        ctx.restore();
+      }
+      ctx.filter = 'none';
+    }
+    
+    // Window Panes Glass Tint - very faint
+    ctx.fillStyle = `rgba(184, 200, 232, 0.04)`;
+    ctx.fillRect(60 - 80, 180, 75, 115);
+    ctx.fillRect(60 + 5, 180, 75, 115);
+    ctx.fillRect(60 - 80, 300, 75, 115);
+    ctx.fillRect(60 + 5, 300, 75, 115);
+    ctx.fillRect(60 - 80, 420, 75, 115);
+    ctx.fillRect(60 + 5, 420, 75, 115);
+    ctx.beginPath(); ctx.arc(60, 180, 80, Math.PI, 0); ctx.fill();
+    
+    // Inner Shadow for depth inside window
+    const innerShadow = ctx.createLinearGradient(60, 100, 60, 530);
+    innerShadow.addColorStop(0, 'rgba(0,0,0,0.8)');
+    innerShadow.addColorStop(0.3, 'rgba(0,0,0,0)');
+    ctx.fillStyle = innerShadow;
+    ctx.beginPath();
+    ctx.arc(60, 180, 80, Math.PI, 0);
+    ctx.rect(60 - 80, 180, 160, 350);
+    ctx.fill();
+
     ctx.restore();
     
     // Floor — dirty cobblestone texture
@@ -181,70 +232,69 @@ export class BedroomScene extends Scene {
       ctx.fillRect(0, 650, 1280, 70);
     }, 0.15);
     
-    // Moonbeam patch
-    ctx.fillStyle = `rgba(184, 200, 232, ${0.12 + pulse})`;
-    ctx.beginPath();
-    ctx.ellipse(80, 650, 100, 30, 0, 0, Math.PI*2);
-    ctx.fill();
-    
     // Bed frame back
     ctx.fillStyle = '#2a1e08';
-    ctx.fillRect(600 - 150, 650 - 100, 300, 100);
+    ctx.fillRect(680 - 150, 650 - 100, 300, 100);
     ctx.fillStyle = '#3a2810';
-    ctx.fillRect(600 - 150, 650 - 180, 18, 180); // back left
-    ctx.fillRect(600 + 150 - 18, 650 - 180, 18, 180); // back right
+    ctx.fillRect(680 - 150, 650 - 180, 18, 180); // back left
+    ctx.fillRect(680 + 150 - 18, 650 - 180, 18, 180); // back right
+    
+    // Bed frame front
+    ctx.fillStyle = '#3a2810';
+    ctx.fillRect(680 - 160, 650 - 80, 320, 80);
+    ctx.fillRect(680 - 160, 650 - 180, 18, 180); // front left
+    ctx.fillRect(680 + 160 - 18, 650 - 180, 18, 180); // front right
+    ctx.fillStyle = '#b0a888';
+    ctx.fillRect(680 - 150, 650 - 90, 300, 20); // linen
     
     // Olive Tree
     ctx.save();
-    ctx.translate(840, 650);
+    ctx.translate(820, 660);
     
     // Olive Tree (Pre-made asset)
     if (treeImg.complete && treeImg.naturalHeight > 0) {
-      const size = 650;
+      const size = 500;
       const typeIndex = 2; // Selection for a gnarly-looking tree
       const col = typeIndex % 4;
       const row = Math.floor(typeIndex / 4);
       
       ctx.save();
-      // Position the base of the tree near the back of the bed frame
-      ctx.translate(0, -90);
-      
       // Filter it to fit the dark bedroom aesthetic
       ctx.filter = `brightness(25%) sepia(20%) hue-rotate(15deg) saturate(110%)`;
-      ctx.drawImage(treeImg, col * 256, row * 256, 256, 256, -size / 2 + 20, -size, size, size);
+      // Drawn so its base is exactly at the origin (741, 650)
+      ctx.drawImage(treeImg, col * 256, row * 256, 256, 256, -size / 2 + 15, -size, size, size);
       ctx.restore();
     }
     
     // Fireflies in the tree
     for (let i = 0; i < 25; i++) {
-      // Deterministic pseudo-random positions roughly mapping to the new tree's canopy
-      const fx = Math.sin(i * 13.5) * 160 + 20;
-      const fy = Math.cos(i * 7.2) * 180 - 450;
+      // True deterministic pseudorandom placement to scatter evenly inside canopy
+      const rand1 = Math.abs((Math.sin(i * 12.9898) * 43758.5453)) % 1; // 0 to 1
+      const rand2 = Math.abs((Math.cos(i * 78.2330) * 34211.2345)) % 1; // 0 to 1
+      
+      const angle = rand1 * Math.PI * 2;
+      const radius = Math.sqrt(rand2); // sqrt ensures uniform area distribution
+      
+      // Canopy dimensions (ellipse) - shifted right and expanded to cover the leaves perfectly
+      const fx = Math.cos(angle) * radius * 120 + 40;
+      const fy = Math.sin(angle) * radius * 170 - 260; 
       
       // Slow twinkle effect
       const twinkle = Math.sin(this.time * 1.5 + i * 2.1) * 0.5 + 0.5;
       
       ctx.fillStyle = `rgba(255, 200, 50, ${twinkle * 0.8})`;
       ctx.beginPath();
-      ctx.arc(fx, fy, 1.5 + twinkle * 0.5, 0, Math.PI*2);
+      ctx.arc(fx, fy, 1.0 + twinkle * 0.5, 0, Math.PI*2);
       ctx.fill();
       
       // Glow
       ctx.fillStyle = `rgba(255, 150, 20, ${twinkle * 0.3})`;
       ctx.beginPath();
-      ctx.arc(fx, fy, 4 + twinkle * 2, 0, Math.PI*2);
+      ctx.arc(fx, fy, 2.5 + twinkle * 1.5, 0, Math.PI*2);
       ctx.fill();
     }
     
     ctx.restore();
-    
-    // Bed frame front
-    ctx.fillStyle = '#3a2810';
-    ctx.fillRect(600 - 160, 650 - 80, 320, 80);
-    ctx.fillRect(600 - 160, 650 - 180, 18, 180); // front left
-    ctx.fillRect(600 + 160 - 18, 650 - 180, 18, 180); // front right
-    ctx.fillStyle = '#b0a888';
-    ctx.fillRect(600 - 150, 650 - 90, 300, 20); // linen
     
     // Player
     this.player.draw(ctx);
